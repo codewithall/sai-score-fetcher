@@ -4,7 +4,7 @@ import { WalletInput } from "@/components/WalletInput";
 import { CreditScoreDisplay } from "@/components/CreditScoreDisplay";
 import { useToast } from "@/hooks/use-toast";
 
-// Mock API call - replace with actual SAI Network API
+// Mock API call - replace with actual SEI Network API
 const fetchCreditScore = async (walletAddress: string) => {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 2000));

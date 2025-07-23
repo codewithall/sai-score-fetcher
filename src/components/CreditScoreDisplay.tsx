@@ -50,7 +50,7 @@ export const CreditScoreDisplay = ({ data }: CreditScoreDisplayProps) => {
         <CardHeader className="text-center">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Shield className="w-5 h-5 text-primary" />
-            <CardTitle>SAI Network Credit Score</CardTitle>
+            <CardTitle>SEI Network Credit Score</CardTitle>
           </div>
           <CardDescription>
             Wallet: {formatWalletAddress(data.walletAddress)}

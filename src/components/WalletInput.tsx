@@ -50,7 +50,7 @@ export const WalletInput = ({ onSubmit, isLoading }: WalletInputProps) => {
         </div>
         <CardTitle className="text-2xl font-bold">Check Credit Score</CardTitle>
         <CardDescription>
-          Enter your wallet address to get your SAI Network credit score
+          Enter your wallet address to get your SEI Network credit score
         </CardDescription>
       </CardHeader>
       <CardContent>

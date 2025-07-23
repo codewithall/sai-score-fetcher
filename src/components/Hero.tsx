@@ -7,7 +7,7 @@ export const Hero = () => {
       <div className="max-w-4xl mx-auto text-center">
         <Badge variant="secondary" className="mb-6 animate-fade-in">
           <Zap className="w-3 h-3 mr-1" />
-          Powered by SAI Network
+          Powered by SEI Network
         </Badge>
         
         <h1 className="text-4xl md:text-6xl font-bold mb-6 animate-fade-in">
