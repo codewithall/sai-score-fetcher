@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Hero } from "@/components/Hero";
 import { WalletInput } from "@/components/WalletInput";
 import { CreditScoreDisplay } from "@/components/CreditScoreDisplay";
+import { Chatbot } from "@/components/Chatbot";
 import { useToast } from "@/hooks/use-toast";
 
 // Mock API call - replace with actual SEI Network API
@@ -75,6 +76,8 @@ const Index = () => {
           )}
         </div>
       </section>
+      
+      <Chatbot />
     </div>
   );
 };
