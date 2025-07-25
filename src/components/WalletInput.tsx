@@ -14,16 +14,16 @@ export const WalletInput = ({ onSubmit, isLoading }: WalletInputProps) => {
   const [error, setError] = useState("");
 
   const validateWalletAddress = (address: string) => {
-    // Basic validation for wallet address format
-    const ethRegex = /^0x[a-fA-F0-9]{40}$/;
-    const solanaRegex = /^[A-Za-z0-9]{32,44}$/;
+    // Basic validation for SEI wallet address format
+    const bech32Regex = /^sei[a-z0-9]{39,59}$/;
+    const evmRegex = /^0x[a-fA-F0-9]{40}$/;
     
     if (!address) {
       return "Wallet address is required";
     }
     
-    if (!ethRegex.test(address) && !solanaRegex.test(address)) {
-      return "Please enter a valid wallet address";
+    if (!bech32Regex.test(address) && !evmRegex.test(address)) {
+      return "Please enter a valid Bech32 (sei...) or EVM (0x...) address";
     }
     
     return "";
@@ -58,7 +58,7 @@ export const WalletInput = ({ onSubmit, isLoading }: WalletInputProps) => {
           <div className="space-y-2">
             <Input
               type="text"
-              placeholder="0x... or wallet address"
+              placeholder="sei... or 0x... address"
               value={walletAddress}
               onChange={(e) => setWalletAddress(e.target.value)}
               className={`transition-all duration-300 ${error ? 'border-destructive' : ''}`}

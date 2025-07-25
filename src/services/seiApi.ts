@@ -2,9 +2,14 @@
 const SEI_RPC_ENDPOINT = "https://rpc.sei-apis.com"; // Main SEI RPC
 const SEI_REST_ENDPOINT = "https://rest.sei-apis.com"; // SEI REST API
 
-// Validate SEI network address format
+// Validate SEI network address format (Bech32 or EVM)
 const isValidSeiAddress = (address: string): boolean => {
-  return address.startsWith('sei') && address.length >= 39 && address.length <= 45;
+  // Bech32 address (sei...)
+  const bech32Regex = /^sei[a-z0-9]{39,59}$/;
+  // EVM address (0x...)
+  const evmRegex = /^0x[a-fA-F0-9]{40}$/;
+  
+  return bech32Regex.test(address) || evmRegex.test(address);
 };
 
 interface SeiTransactionResponse {
@@ -106,7 +111,7 @@ export const fetchStakingInfo = async (walletAddress: string) => {
 export const calculateCreditScore = async (walletAddress: string) => {
   // Validate address format first
   if (!isValidSeiAddress(walletAddress)) {
-    throw new Error("Invalid SEI address format. Please use a valid SEI address starting with 'sei' (e.g., sei1abc...)");
+    throw new Error("Invalid address format. Please use a valid Bech32 address (sei...) or EVM address (0x...)");
   }
 
   try {
