@@ -1,6 +1,7 @@
 // SEI Network API integration
 const SEI_RPC_ENDPOINT = "https://rpc.sei-apis.com"; // Main SEI RPC
 const SEI_REST_ENDPOINT = "https://rest.sei-apis.com"; // SEI REST API
+const SEI_EVM_RPC = "https://evm-rpc.sei-apis.com"; // SEI EVM RPC for 0x addresses
 
 // Validate SEI network address format (Bech32 or EVM)
 const isValidSeiAddress = (address: string): boolean => {
@@ -69,6 +70,40 @@ export const fetchWalletTransactions = async (walletAddress: string, limit = 100
   }
 };
 
+// Fetch EVM wallet balance
+export const fetchEvmBalance = async (walletAddress: string) => {
+  try {
+    const response = await fetch(SEI_EVM_RPC, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_getBalance',
+        params: [walletAddress, 'latest'],
+        id: 1,
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch EVM balance: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    if (data.error) {
+      throw new Error(`EVM RPC error: ${data.error.message}`);
+    }
+    
+    // Convert from wei to SEI (divide by 10^18)
+    const balanceWei = parseInt(data.result, 16);
+    return balanceWei / Math.pow(10, 18);
+  } catch (error) {
+    console.error("Error fetching EVM balance:", error);
+    return 0;
+  }
+};
+
 // Fetch wallet balance
 export const fetchWalletBalance = async (walletAddress: string) => {
   try {
@@ -115,12 +150,35 @@ export const calculateCreditScore = async (walletAddress: string) => {
   }
 
   try {
-    // Fetch all data in parallel
-    const [transactions, balances, stakingInfo] = await Promise.all([
-      fetchWalletTransactions(walletAddress),
-      fetchWalletBalance(walletAddress),
-      fetchStakingInfo(walletAddress)
-    ]);
+    // Check if it's an EVM address and handle differently
+    const isEvmAddress = walletAddress.startsWith('0x');
+    
+    let transactions, balances, stakingInfo;
+    
+    if (isEvmAddress) {
+      // For EVM addresses, we can only get limited data
+      // Use EVM-compatible endpoints or convert to bech32 if possible
+      transactions = await fetchWalletTransactions(walletAddress);
+      balances = []; // EVM balance queries need different approach
+      stakingInfo = []; // EVM staking queries need different approach
+      
+      // Try to get EVM balance using different method
+      try {
+        const evmBalance = await fetchEvmBalance(walletAddress);
+        if (evmBalance > 0) {
+          balances = [{ denom: "usei", amount: (evmBalance * 1000000).toString() }];
+        }
+      } catch (error) {
+        console.warn("Could not fetch EVM balance:", error);
+      }
+    } else {
+      // For Bech32 addresses, use the standard Cosmos API
+      [transactions, balances, stakingInfo] = await Promise.all([
+        fetchWalletTransactions(walletAddress),
+        fetchWalletBalance(walletAddress),
+        fetchStakingInfo(walletAddress)
+      ]);
+    }
 
     // Calculate various factors
     const transactionCount = transactions.length;
