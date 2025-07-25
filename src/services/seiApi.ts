@@ -2,6 +2,11 @@
 const SEI_RPC_ENDPOINT = "https://rpc.sei-apis.com"; // Main SEI RPC
 const SEI_REST_ENDPOINT = "https://rest.sei-apis.com"; // SEI REST API
 
+// Validate SEI network address format
+const isValidSeiAddress = (address: string): boolean => {
+  return address.startsWith('sei') && address.length >= 39 && address.length <= 45;
+};
+
 interface SeiTransactionResponse {
   txs: {
     txhash: string;
@@ -99,6 +104,11 @@ export const fetchStakingInfo = async (walletAddress: string) => {
 
 // Calculate credit score from real blockchain data
 export const calculateCreditScore = async (walletAddress: string) => {
+  // Validate address format first
+  if (!isValidSeiAddress(walletAddress)) {
+    throw new Error("Invalid SEI address format. Please use a valid SEI address starting with 'sei' (e.g., sei1abc...)");
+  }
+
   try {
     // Fetch all data in parallel
     const [transactions, balances, stakingInfo] = await Promise.all([
