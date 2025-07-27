@@ -157,10 +157,9 @@ export const calculateCreditScore = async (walletAddress: string) => {
     
     if (isEvmAddress) {
       // For EVM addresses, we can only get limited data
-      // Use EVM-compatible endpoints or convert to bech32 if possible
       transactions = await fetchWalletTransactions(walletAddress);
-      balances = []; // EVM balance queries need different approach
-      stakingInfo = []; // EVM staking queries need different approach
+      balances = [];
+      stakingInfo = [];
       
       // Try to get EVM balance using different method
       try {
@@ -180,45 +179,92 @@ export const calculateCreditScore = async (walletAddress: string) => {
       ]);
     }
 
-    // Calculate various factors
-    const transactionCount = transactions.length;
-    const totalBalance = balances.reduce((sum, balance) => {
-      if (balance.denom === "usei") {
-        return sum + parseInt(balance.amount) / 1000000; // Convert microSEI to SEI
-      }
-      return sum;
-    }, 0);
+    // Enhanced scoring algorithm for SEI Network
+    const now = new Date();
+    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const threeMonthsAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
 
+    // 1. TRANSACTION HISTORY ANALYSIS (35% weight)
+    const transactionCount = transactions.length;
+    const recentTransactions = transactions.filter(tx => new Date(tx.timestamp) > oneMonthAgo);
+    const mediumTermTxs = transactions.filter(tx => new Date(tx.timestamp) > threeMonthsAgo);
+    const longTermTxs = transactions.filter(tx => new Date(tx.timestamp) > sixMonthsAgo);
+
+    // Calculate transaction consistency and frequency
+    const consistencyScore = Math.min(100, (
+      (recentTransactions.length * 0.5) + 
+      (mediumTermTxs.length * 0.3) + 
+      (longTermTxs.length * 0.2)
+    ) * 2);
+
+    // Analyze transaction complexity (DeFi interactions)
+    const defiTransactions = transactions.filter(tx => {
+      const messages = tx.tx?.body?.messages || [];
+      return messages.some(msg => 
+        msg['@type']?.includes('wasm') || 
+        msg['@type']?.includes('swap') ||
+        msg['@type']?.includes('pool') ||
+        msg['@type']?.includes('liquidity')
+      );
+    });
+
+    const transactionHistoryScore = Math.min(100, 
+      (Math.log(transactionCount + 1) * 15) + 
+      (consistencyScore * 0.4) + 
+      (defiTransactions.length * 3)
+    );
+
+    // 2. NETWORK PARTICIPATION (25% weight)
     const totalStaked = stakingInfo.reduce((sum, delegation) => {
       return sum + parseInt(delegation.balance.amount) / 1000000;
     }, 0);
 
-    // Calculate transaction frequency (transactions per month)
-    const now = new Date();
-    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const recentTransactions = transactions.filter(tx => {
-      const txDate = new Date(tx.timestamp);
-      return txDate > oneMonthAgo;
-    });
+    const totalBalance = balances.reduce((sum, balance) => {
+      if (balance.denom === "usei") {
+        return sum + parseInt(balance.amount) / 1000000;
+      }
+      return sum;
+    }, 0);
 
-    // Calculate scores for each factor (0-100)
-    const transactionHistoryScore = Math.min(100, Math.log(transactionCount + 1) * 20);
-    const liquidityScore = Math.min(100, Math.log(totalBalance + 1) * 15);
-    const stakingScore = Math.min(100, Math.log(totalStaked + 1) * 25);
-    const activityScore = Math.min(100, recentTransactions.length * 5);
+    // Calculate staking ratio (staked / total holdings)
+    const stakingRatio = totalBalance > 0 ? (totalStaked / (totalStaked + totalBalance)) : 0;
+    const validatorDiversity = stakingInfo.length; // Number of different validators
 
-    // Weighted average
-    const finalScore = Math.round(
-      (transactionHistoryScore * 0.3) +
-      (liquidityScore * 0.25) +
-      (stakingScore * 0.25) +
-      (activityScore * 0.2)
+    const networkParticipationScore = Math.min(100, 
+      (Math.log(totalStaked + 1) * 20) + 
+      (stakingRatio * 40) + 
+      (validatorDiversity * 8)
     );
 
-    // Convert to 600-900 scale
+    // 3. LIQUIDITY PROVISION (25% weight)
+    const liquidityBalance = totalBalance;
+    const balanceStability = Math.min(100, Math.log(liquidityBalance + 1) * 18);
+    
+    // Consider multi-token holdings as liquidity diversification
+    const tokenDiversity = balances.length;
+    const diversificationBonus = Math.min(20, tokenDiversity * 5);
+
+    const liquidityProvisionScore = Math.min(100, balanceStability + diversificationBonus);
+
+    // 4. DEFI INTERACTIONS (15% weight)
+    const defiScore = Math.min(100, 
+      (defiTransactions.length * 8) + 
+      (Math.log(defiTransactions.length + 1) * 15)
+    );
+
+    // Enhanced weighted calculation
+    const finalScore = Math.round(
+      (transactionHistoryScore * 0.35) +
+      (networkParticipationScore * 0.25) +
+      (liquidityProvisionScore * 0.25) +
+      (defiScore * 0.15)
+    );
+
+    // Convert to 600-900 scale with better distribution
     const scaledScore = Math.round(600 + (finalScore / 100) * 300);
 
-    // Determine grade and risk level
+    // More nuanced grade and risk assessment
     let grade = 'F';
     let riskLevel: 'low' | 'medium' | 'high' = 'high';
 
@@ -227,25 +273,36 @@ export const calculateCreditScore = async (walletAddress: string) => {
     else if (scaledScore >= 750) { grade = 'A-'; riskLevel = 'low'; }
     else if (scaledScore >= 700) { grade = 'B+'; riskLevel = 'medium'; }
     else if (scaledScore >= 650) { grade = 'B'; riskLevel = 'medium'; }
-    else { riskLevel = 'high'; }
+    else if (scaledScore >= 600) { grade = 'C'; riskLevel = 'medium'; }
+    else { grade = 'D'; riskLevel = 'high'; }
+
+    // Calculate accuracy based on data availability
+    let accuracy = 85; // Base accuracy
+    if (!isEvmAddress && transactionCount > 10) accuracy += 5;
+    if (stakingInfo.length > 0) accuracy += 5;
+    if (balances.length > 1) accuracy += 3;
+    if (defiTransactions.length > 0) accuracy += 2;
 
     return {
       score: scaledScore,
-      accuracy: 95, // High accuracy since it's real blockchain data
+      accuracy: Math.min(99, accuracy),
       grade,
       riskLevel,
       factors: {
         transactionHistory: Math.round(transactionHistoryScore),
-        liquidityProvision: Math.round(liquidityScore),
-        defiInteractions: Math.round(stakingScore),
-        networkParticipation: Math.round(activityScore),
+        liquidityProvision: Math.round(liquidityProvisionScore),
+        defiInteractions: Math.round(defiScore),
+        networkParticipation: Math.round(networkParticipationScore),
       },
       walletAddress,
       rawData: {
         transactionCount,
         totalBalance,
         totalStaked,
-        recentTransactionCount: recentTransactions.length
+        recentTransactionCount: recentTransactions.length,
+        defiTransactionCount: defiTransactions.length,
+        stakingRatio: Math.round(stakingRatio * 100),
+        validatorCount: validatorDiversity
       }
     };
 
