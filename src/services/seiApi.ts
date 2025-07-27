@@ -51,19 +51,51 @@ interface SeiValidatorResponse {
   }[];
 }
 
-// Fetch wallet transactions
+// Fetch wallet transactions with multiple query methods
 export const fetchWalletTransactions = async (walletAddress: string, limit = 100) => {
   try {
-    const response = await fetch(
-      `${SEI_REST_ENDPOINT}/cosmos/tx/v1beta1/txs?events=message.sender='${walletAddress}'&pagination.limit=${limit}&order_by=ORDER_BY_DESC`
-    );
+    console.log(`Fetching transactions for address: ${walletAddress}`);
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch transactions: ${response.status}`);
+    // Try multiple query formats to get transactions
+    const queries = [
+      `message.sender='${walletAddress}'`,
+      `transfer.recipient='${walletAddress}'`,
+      `transfer.sender='${walletAddress}'`,
+      `coin_received.receiver='${walletAddress}'`,
+      `coin_spent.spender='${walletAddress}'`
+    ];
+    
+    let allTransactions: any[] = [];
+    
+    for (const query of queries) {
+      try {
+        const response = await fetch(
+          `${SEI_REST_ENDPOINT}/cosmos/tx/v1beta1/txs?events=${encodeURIComponent(query)}&pagination.limit=${limit}&order_by=ORDER_BY_DESC`
+        );
+        
+        if (response.ok) {
+          const data: SeiTransactionResponse = await response.json();
+          console.log(`Query "${query}" returned ${data.txs?.length || 0} transactions`);
+          
+          if (data.txs && data.txs.length > 0) {
+            // Merge transactions, avoiding duplicates
+            const newTxs = data.txs.filter(tx => 
+              !allTransactions.some(existing => existing.txhash === tx.txhash)
+            );
+            allTransactions = [...allTransactions, ...newTxs];
+          }
+        }
+      } catch (queryError) {
+        console.warn(`Query "${query}" failed:`, queryError);
+      }
     }
     
-    const data: SeiTransactionResponse = await response.json();
-    return data.txs || [];
+    // Sort by height (newest first)
+    allTransactions.sort((a, b) => parseInt(b.height) - parseInt(a.height));
+    
+    console.log(`Total unique transactions found: ${allTransactions.length}`);
+    return allTransactions.slice(0, limit);
+    
   } catch (error) {
     console.error("Error fetching transactions:", error);
     return [];
